@@ -1,0 +1,28 @@
+<assembly>
+	<id>dist</id>
+	<formats>
+		<format>zip</format>
+	</formats>
+
+	<includeBaseDirectory>false</includeBaseDirectory>
+
+	<files>
+		<file>
+			<source>target/${project.artifactId}-${project.version}-jar-with-dependencies.jar</source>
+			<destName>lib/graphviz-java-cli.jar</destName>
+		</file>
+	</files>
+
+	<fileSets>
+		<fileSet>
+			<directory>src/main/launchers</directory>
+			<outputDirectory>.</outputDirectory>
+			<includes>
+				<include>*.sh</include>
+				<include>*.bat</include>
+			</includes>
+			<fileMode>0755</fileMode>
+		</fileSet>
+	</fileSets>
+
+</assembly>
