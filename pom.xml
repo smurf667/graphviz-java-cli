@@ -12,23 +12,41 @@
 	<properties>
 		<maven.compiler.source>1.8</maven.compiler.source>
 		<maven.compiler.target>1.8</maven.compiler.target>
-		<graphviz-java.version>0.18.1</graphviz-java.version>
+		<viz-js.version>2.1.2</viz-js.version>
+		<graalvm-js.version>21.1.0</graalvm-js.version>
 	</properties>
 	<dependencies>
 		<dependency>
-			<groupId>guru.nidi</groupId>
-			<artifactId>graphviz-java</artifactId>
-			<version>0.18.1</version>
+			<groupId>org.webjars.npm</groupId>
+			<artifactId>viz.js</artifactId>
+			<version>${viz-js.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.graalvm.js</groupId>
+			<artifactId>js</artifactId>
+			<version>${graalvm-js.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.graalvm.js</groupId>
+			<artifactId>js-scriptengine</artifactId>
+			<version>${graalvm-js.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>ch.qos.logback</groupId>
 			<artifactId>logback-classic</artifactId>
 			<version>1.2.3</version>
 		</dependency>
-		<dependency>
+ 		<dependency>
 			<groupId>org.junit.jupiter</groupId>
 			<artifactId>junit-jupiter-engine</artifactId>
 			<version>5.4.0</version>
+			<scope>test</scope>
+		</dependency>
+		<!-- weirdly, JUnit 5 gives java.lang.NoClassDefFoundError: junit/framework/ComparisonFailure from JUnit5TestListener if classes of JUnit 4 not present -->
+		<dependency>
+			<groupId>junit</groupId>
+			<artifactId>junit</artifactId>
+			<version>4.13.2</version>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
@@ -48,7 +66,7 @@
 						<configuration>
 							<target>
 								<echo
-									message="graphviz-java-cli=${project.version}${line.separator}graphviz-java=${graphviz-java.version}"
+									message="graphviz-java-cli=${project.version}${line.separator}viz-js=${viz-js.version}"
 									file="${project.build.outputDirectory}/versions.properties"/>
 							</target>
 						</configuration>
@@ -57,24 +75,21 @@
 			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-jar-plugin</artifactId>
+				<version>3.2.0</version>
+				<configuration>
+					<archive>
+						<manifest>
+							<addClasspath>true</addClasspath>
+							<mainClass>de.engehausen.graphviz.GraphVizCLI</mainClass>
+						</manifest>
+					</archive>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-assembly-plugin</artifactId>
 				<executions>
-					<execution>
-						<phase>package</phase>
-						<goals>
-							<goal>single</goal>
-						</goals>
-						<configuration>
-							<archive>
-								<manifest>
-									<mainClass>de.engehausen.graphviz.GraphVizCLI</mainClass>
-								</manifest>
-							</archive>
-							<descriptorRefs>
-								<descriptorRef>jar-with-dependencies</descriptorRef>
-							</descriptorRefs>
-						</configuration>
-					</execution>
 					<execution>
 						<id>dist</id>
 						<phase>package</phase>

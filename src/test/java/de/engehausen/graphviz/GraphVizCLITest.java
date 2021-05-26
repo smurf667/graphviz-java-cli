@@ -1,7 +1,7 @@
 package de.engehausen.graphviz;
 
-import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -11,8 +11,6 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-
-import javax.imageio.ImageIO;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -26,16 +24,17 @@ public class GraphVizCLITest {
 	}
 
 	@Test
-	public void writePNG() throws IOException, URISyntaxException {
+	public void writeFile() throws IOException, URISyntaxException {
 		final Path path = simpleDot();
-		final Path png = path.getParent().resolve("out.png");
+		final Path target = path.getParent().resolve("out.svg");
 		new GraphVizCLI(
-			GraphVizCLI.OPTION_OUT + png.toString(),
-			GraphVizCLI.OPTION_TYPE + "png",
+			GraphVizCLI.OPTION_OUT + target.toString(),
+			GraphVizCLI.OPTION_TYPE + "svg",
 			path.toString()
 		).run();
-		final BufferedImage result = ImageIO.read(png.toFile());
-		Assertions.assertNotNull(result);
+		final File out = target.toFile();
+		Assertions.assertTrue(out.exists());
+		Assertions.assertTrue(out.length() > 0);
 	}
 
 	@Test
@@ -51,7 +50,7 @@ public class GraphVizCLITest {
 				throw new IllegalStateException(e);
 			}
 		});
-		Assertions.assertTrue(result.startsWith("<svg"));
+		Assertions.assertTrue(result.contains("<svg"));
 	}
 
 	@Test
@@ -70,7 +69,27 @@ public class GraphVizCLITest {
 				System.setIn(old);
 			}
 		});
-		Assertions.assertTrue(result.startsWith("<svg"));
+		Assertions.assertTrue(result.contains("<svg"));
+		Assertions.assertTrue(result.contains("pt\" height=\""));
+	}
+
+	@Test
+	public void streamSvekSVG() throws IOException, URISyntaxException {
+		final Path path = svekDot();
+		final String result = captureOutput(() -> {
+			final InputStream old = System.in;
+			try {
+				System.setIn(new FileInputStream(path.toFile()));
+				new GraphVizCLI(
+					GraphVizCLI.OPTION_TYPE + "svg"
+				).run();
+			} catch (IOException e) {
+				throw new IllegalStateException(e);
+			} finally {
+				System.setIn(old);
+			}
+		});
+		Assertions.assertTrue(result.contains("<svg"));
 		Assertions.assertTrue(result.contains("pt\" height=\""));
 	}
 
@@ -95,7 +114,15 @@ public class GraphVizCLITest {
 	}
 
 	protected Path simpleDot() throws URISyntaxException {
-		final URL url = GraphVizCLITest.class.getResource("/simple.dot");
+		return toPath("/simple.dot");
+	}
+
+	protected Path svekDot() throws URISyntaxException {
+		return toPath("/svek.dot");
+	}
+
+	protected Path toPath(final String resource) throws URISyntaxException {
+		final URL url = GraphVizCLITest.class.getResource(resource);
 		Assertions.assertNotNull(url);
 		return Paths.get(url.toURI());
 	}

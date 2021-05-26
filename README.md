@@ -9,11 +9,11 @@ I've started using [Asciidoctor Diagram](https://asciidoctor.org/docs/asciidocto
 Graphviz diagrams) worked out of the box. Disappointment settled in when I ran on Linux. It turns out that PlantUML embeds Graphviz
 for Windows only (read ["Starting from 1.2020.21"](https://plantuml.com/graphviz-dot)). This leaves other platforms having to install `dot` separately.
 At work in a CI scenario this gives me a hard time. I've seen documentation on [smetana](https://plantuml.com/smetana02) and
-[VizJs](https://plantuml.com/vizjs) but had the impression this would be hard in my above Maven setup.
+[VizJs support for PlantUML](https://plantuml.com/vizjs) but had the impression this would be hard in my above Maven setup.
 
-I've found the excellent [graphviz-java](https://github.com/nidi3/graphviz-java), but it does not have a command line interface.
-More out of morbid curiosity I tried to give it one and plug it into the Asciidoctor Maven plugin. There are some quirks, but
-basically it seems to work.
+Looking directly at [VizJs](https://github.com/mdaines/viz.js/blob/master/README.md) I see it has no command line interface.
+More out of morbid curiosity I tried to give it one and plug it into the Asciidoctor Maven plugin. There are some quirks (for example
+only SVG support), but basically it seems to work and may serve as a Linux workaround.
 
 This project can be built and installed, for example with
 
@@ -26,8 +26,8 @@ cd target
 unzip graphviz-java-cli-*-dist.zip
 # show version
 dot-lite.sh -V
-# read .dot from file and write PNG
-dot-lite.sh -odemo.png -Tpng ../src/test/resources/simple.dot
+# read .dot from file and write SVG
+dot-lite.sh -odemo.svg ../src/test/resources/simple.dot
 # read .dot from file and write SVG to stdout
 dot-lite.sh -Tsvg ../src/test/resources/simple.dot
 # pipe .dot into stdin and write SVG to file

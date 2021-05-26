@@ -13,14 +13,17 @@ We just haven't decided what that is yet.
 
 == Diagrams
 
-[plantuml,jan]
+[plantuml,milestone-instantiate,svg]
 ----
-skinparam monochrome true
+'!pragma svek_trace on
+"Template Instantiator" as Instantiator
+"Instantiate new component" as (instantiate)
+"Check in to version control" as (checkin)
+"Setup CI and release build" as (setup)
 
-:User: --> (Use)
-"Main Admin" as Admin
-"Use the application" as (Use)
-Admin --> (Admin the application)
+Instantiator -> (instantiate) : "performs"
+(instantiate) -> (checkin)
+(checkin) -> (setup)
 ----
 
 [ditaa,asciidoctor-diagram-process]
