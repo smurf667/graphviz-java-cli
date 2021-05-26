@@ -1,26 +1,24 @@
 package de.engehausen.graphviz;
 
+import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.graalvm.polyglot.Context;
+import org.graalvm.polyglot.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import guru.nidi.graphviz.engine.Format;
-import guru.nidi.graphviz.engine.Graphviz;
-import guru.nidi.graphviz.parse.Parser;
 
 /**
  * Simple command line interface for
@@ -29,7 +27,7 @@ import guru.nidi.graphviz.parse.Parser;
  * <a href="https://www.graphviz.org/">Graphviz</a> {@code dot} tool:
  * <ul>
  * <li>{@code -o<out-filename>} output file name</li>
- * <li>{@code -T<type>} output format, e.g. {@code svg} or {@code png}</li>
+ * <li>{@code -T<type>} output format, only {@code svg} is supported</li>
  * <li>{@code -V} prints version information</li>
  * </ul>
  * Additionally, <em>one single</em> input file name can be specified.
@@ -40,15 +38,18 @@ public class GraphVizCLI implements Runnable {
 	public static final String OPTION_TYPE = "-T";
 	public static final String OPTION_VERSION = "-V";
 
+	public static final String FORMAT_SVG = "svg";
+
+	private static final String JS_LANG = "js";
+
 	private static final Logger LOGGER = LoggerFactory.getLogger(GraphVizCLI.class);
 	private static final String FILE_MARKER = "input-file";
 	private static final String VERSION;
 	private static final String GRAPHVIZ_VERSION;
 	private static final String SWITCH_PREFIX = "-";
 	private static final int SWITCH_LENGTH = SWITCH_PREFIX.length() + 1;
-	private static final String PROP_GRAPHVIZ_JAVA_VERSION = "graphviz-java";
+	private static final String PROP_VIZ_JS_VERSION = "viz-js";
 	private static final String PROP_MY_VERSION = "graphviz-java-cli";
-	private static final Pattern SVG_IN_PX = Pattern.compile("(?m)\\<svg\\s+width=\"(\\d+)px\"\\s+height=\"(\\d+)px\"");
 
 	static {
 		String me = "???";
@@ -58,7 +59,7 @@ public class GraphVizCLI implements Runnable {
 				final Properties props = new Properties();
 				props.load(stream);
 				me = props.getProperty(PROP_MY_VERSION, me);
-				graphViz = props.getProperty(PROP_GRAPHVIZ_JAVA_VERSION, graphViz);
+				graphViz = props.getProperty(PROP_VIZ_JS_VERSION, graphViz);
 			}
 		} catch (IOException e) {
 			LOGGER.debug("cannot get version info", e);
@@ -69,7 +70,7 @@ public class GraphVizCLI implements Runnable {
 
 	private final InputStream dot;
 	private final OutputStream out;
-	private final Format format;
+	private final String format;
 	private final boolean showVersion;
 
 	/**
@@ -106,7 +107,7 @@ public class GraphVizCLI implements Runnable {
 		}
 		dot = toInStream(files);
 		out = toOutStream(options.get(OPTION_OUT));
-		format = Format.valueOf(options.getOrDefault(OPTION_TYPE, Format.PNG.name()).toUpperCase(Locale.ENGLISH));
+		format = options.getOrDefault(OPTION_TYPE, FORMAT_SVG);
 		showVersion = options.containsKey(OPTION_VERSION);
 	}
 
@@ -119,30 +120,26 @@ public class GraphVizCLI implements Runnable {
 			System.out.printf("dot - graphviz-java-cli v%s (graphviz-java v%s)%n", VERSION, GRAPHVIZ_VERSION);
 			return;
 		}
-		try {
-			Graphviz
-				.fromGraph(new Parser().read(dot))
-				.postProcessor((result, options, processOptions) -> result
-					.mapString(svg -> {
-						// quirky PlantUML stdout handling (requires pt instead of px)
-						// https://github.com/plantuml/plantuml/blob/f83a207360011e575046becb056f5f84104656b2/src/net/sourceforge/plantuml/svek/DotStringFactory.java#L354
-						final Matcher matcher = SVG_IN_PX.matcher(svg);
-						if (out == System.out && matcher.find()) {
-							return matcher.replaceFirst("<svg width=\"$1pt\" height=\"$2pt\"") + svg.substring(matcher.end());
-						}
-						return svg;
-					}))
-				.render(format)
-				.toOutputStream(out);
-		} catch (IOException e) {
-			throw new IllegalStateException(e);
-		} finally {
+		if (!FORMAT_SVG.equals(format)) {
+			throw new IllegalArgumentException("only svg type is supported");
+		}
+		final String full = readToString(GraphVizCLI.class.getResourceAsStream("/META-INF/resources/webjars/viz.js/2.1.2/full.render.js"));
+		final String vizjs = readToString(GraphVizCLI.class.getResourceAsStream("/META-INF/resources/webjars/viz.js/2.1.2/viz.js"));
+		final Context context = Context.newBuilder(JS_LANG).build();
+		context.eval(JS_LANG, vizjs);
+		context.eval(JS_LANG, full);
+		final Value render = context.eval(JS_LANG, readToString(GraphVizCLI.class.getResourceAsStream("/render.js")));
+		if (render.canExecute()) {
+			// this is just so weird, I can't get the promise value, already resolved
+			render.execute(readToString(dot));
+			final String output = context.getBindings(JS_LANG).getMember("svg").asString();
 			try {
-				out.close();
+				out.write(output.getBytes(StandardCharsets.UTF_8));
 			} catch (IOException e) {
-				LOGGER.error("cannot close out stream", e);
+				throw new IllegalStateException(e);
 			}
 		}
+
 	}
 
 	protected InputStream toInStream(final List<String> filenames) throws FileNotFoundException {
@@ -151,6 +148,16 @@ public class GraphVizCLI implements Runnable {
 
 	protected OutputStream toOutStream(final String filename) throws FileNotFoundException {
 		return filename == null ? System.out : new FileOutputStream(filename);
+	}
+
+	protected String readToString(final InputStream is) {
+		try (final BufferedReader reader = new BufferedReader(new InputStreamReader(is))) {
+			return reader
+				.lines()
+				.collect(Collectors.joining("\n"));
+		} catch (IOException e) {
+			throw new IllegalStateException(e);
+		}
 	}
 
 	/**
