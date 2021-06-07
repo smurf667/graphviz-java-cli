@@ -1,0 +1,3 @@
+// broken on purpose
+digraph g {
+    a ->

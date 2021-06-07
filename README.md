@@ -84,3 +84,12 @@ In the configuration of the Asciidoctor Maven plugin the `graphvizdot` attribute
 ```
 
 The approach is demonstrated in the [asciidoctor-diagram-example](asciidoctor-diagram-example/README.md).
+
+## Extended testing
+
+The demonstrated approach seems to only work for simple `.dot` files. I quickly hit a wall with
+more complicated ones. Memory and stack sizes can be increased, but runtime seems to grow wildly.
+A test for this exists; to run it successfully, do
+
+	export MAVEN_OPTS=-Xss4m -Xms1G -Xmx1G
+	mvn test -DlargeDotTest=true

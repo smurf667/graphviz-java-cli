@@ -12,6 +12,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -22,7 +24,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Simple command line interface for
- * <a href="https://github.com/nidi3/graphviz-java">graphviz-java</a>.
+ * <a href="https://github.com/mdaines/viz.js/blob/master/README.md">VizJs</a>.
  * This only accepts a minimal subset of options of the
  * <a href="https://www.graphviz.org/">Graphviz</a> {@code dot} tool:
  * <ul>
@@ -39,6 +41,9 @@ public class GraphVizCLI implements Runnable {
 	public static final String OPTION_VERSION = "-V";
 
 	public static final String FORMAT_SVG = "svg";
+
+	public static final String SYSPROP_TOTAL_STACK = "TOTAL_STACK";
+	public static final String SYSPROP_TOTAL_MEMORY = "TOTAL_MEMORY";
 
 	private static final String JS_LANG = "js";
 
@@ -123,7 +128,7 @@ public class GraphVizCLI implements Runnable {
 		if (!FORMAT_SVG.equals(format)) {
 			throw new IllegalArgumentException("only svg type is supported");
 		}
-		final String full = readToString(GraphVizCLI.class.getResourceAsStream("/META-INF/resources/webjars/viz.js/2.1.2/full.render.js"));
+		final String full = configure(readToString(GraphVizCLI.class.getResourceAsStream("/META-INF/resources/webjars/viz.js/2.1.2/full.render.js")));
 		final String vizjs = readToString(GraphVizCLI.class.getResourceAsStream("/META-INF/resources/webjars/viz.js/2.1.2/viz.js"));
 		final Context context = Context.newBuilder(JS_LANG).build();
 		context.eval(JS_LANG, vizjs);
@@ -131,12 +136,20 @@ public class GraphVizCLI implements Runnable {
 		final Value render = context.eval(JS_LANG, readToString(GraphVizCLI.class.getResourceAsStream("/render.js")));
 		if (render.canExecute()) {
 			// this is just so weird, I can't get the promise value, already resolved
-			render.execute(readToString(dot));
+			final Value promise = render.execute(readToString(dot));
 			final String output = context.getBindings(JS_LANG).getMember("svg").asString();
-			try {
-				out.write(output.getBytes(StandardCharsets.UTF_8));
-			} catch (IOException e) {
-				throw new IllegalStateException(e);
+			if (output != null) {
+				try {
+					out.write(output.getBytes(StandardCharsets.UTF_8));
+				} catch (IOException e) {
+					throw new IllegalStateException(e);
+				}
+			} else {
+				// this seems to be an error; extracting info from the promise is awkward
+				final Matcher matcher = Pattern
+					.compile("\\[\\[PromiseValue\\]\\]: (.*)", Pattern.DOTALL)
+					.matcher(promise.toString());
+				throw new IllegalStateException(sanitizeMessage(matcher.find() ? matcher.group(1) : "unknown error"));
 			}
 		}
 
@@ -158,6 +171,32 @@ public class GraphVizCLI implements Runnable {
 		} catch (IOException e) {
 			throw new IllegalStateException(e);
 		}
+	}
+
+	protected String configure(final String full) {
+		return configure(
+			configure(full, SYSPROP_TOTAL_MEMORY)
+			, SYSPROP_TOTAL_STACK);
+	}
+
+	protected String configure(final String full, final String key) {
+		final String value = System.getProperty(key);
+		if (value == null) {
+			return full;
+		}
+		final Matcher matcher = Pattern
+			.compile(String.format(
+				"(Module\\[\"%s\"\\]\\|\\|)(\\d+)",
+				key)
+			).matcher(full);
+		if (matcher.find()) {
+			return matcher.replaceFirst(matcher.group(1) + value);
+		}
+		return full;
+	}
+
+	protected String sanitizeMessage(final String message) {
+		return message.endsWith("}") ? message.substring(0, message.length() - 1) : message;
 	}
 
 	/**

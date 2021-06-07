@@ -14,6 +14,7 @@ import java.nio.file.Paths;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 
 public class GraphVizCLITest {
 
@@ -98,6 +99,48 @@ public class GraphVizCLITest {
 		Assertions.assertThrows(
 			IllegalArgumentException.class,
 			() -> new GraphVizCLI("a", "b"));
+	}
+
+	@Test
+	public void handleError() throws IOException, URISyntaxException {
+		final Path path = toPath("/syntax-error.dot");
+		final String message = Assertions.assertThrows(IllegalStateException.class, () -> {
+			final InputStream old = System.in;
+			try {
+				System.setIn(new FileInputStream(path.toFile()));
+				new GraphVizCLI(
+					GraphVizCLI.OPTION_TYPE + "svg"
+				).run();
+			} catch (IOException e) {
+				throw new IllegalStateException(e);
+			} finally {
+				System.setIn(old);
+			}
+		}).getMessage();
+		Assertions.assertTrue(message.contains("syntax error"));
+	}
+
+	@Test
+	@EnabledIfSystemProperty(named = "largeDotTest", matches = "true")
+	public void processLargeDot() throws IOException, URISyntaxException {
+		final Path path = toPath("/large.dot");
+		try {
+			System.setProperty("TOTAL_MEMORY", Long.valueOf(3 * (2 << 24) / 2).toString());
+			System.setProperty(GraphVizCLI.SYSPROP_TOTAL_MEMORY, Long.valueOf(2 << 24).toString());
+			final String result = captureOutput(() -> {
+				try {
+					new GraphVizCLI(
+						GraphVizCLI.OPTION_TYPE + "svg",
+						path.toString()
+					).run();
+				} catch (IOException e) {
+					throw new IllegalStateException(e);
+				}
+			});
+			Assertions.assertTrue(result.contains("<svg"));
+		} finally {
+			System.clearProperty("TOTAL_MEMORY");
+		}
 	}
 
 	@Test
