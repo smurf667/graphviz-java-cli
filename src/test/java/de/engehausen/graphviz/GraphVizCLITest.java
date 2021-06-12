@@ -125,7 +125,6 @@ public class GraphVizCLITest {
 	public void processLargeDot() throws IOException, URISyntaxException {
 		final Path path = toPath("/large.dot");
 		try {
-			System.setProperty("TOTAL_MEMORY", Long.valueOf(3 * (2 << 24) / 2).toString());
 			System.setProperty(GraphVizCLI.SYSPROP_TOTAL_MEMORY, Long.valueOf(2 << 24).toString());
 			final String result = captureOutput(() -> {
 				try {
@@ -139,7 +138,7 @@ public class GraphVizCLITest {
 			});
 			Assertions.assertTrue(result.contains("<svg"));
 		} finally {
-			System.clearProperty("TOTAL_MEMORY");
+			System.clearProperty(GraphVizCLI.SYSPROP_TOTAL_MEMORY);
 		}
 	}
 
